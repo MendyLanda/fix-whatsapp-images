@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LANDA-FIX JPEG Repair Tool</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        #dropzone {
+            border: 2px dashed #ccc;
+            border-radius: 20px;
+            width: 100%;
+            height: 200px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            margin: 20px 0;
+            cursor: pointer;
+        }
+        #dropzone.dragover {
+            background-color: #e9e9e9;
+        }
+        #folderInput {
+            display: none;
+        }
+        #status {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>LANDA-FIX JPEG Repair Tool</h1>
+    <p>Drop your folders containing WhatsApp JPEG images here to repair and download them immediately.</p>
+    <p>Reach out to <a href="mailto:landamendy@gmail.com">landamendy@gmail.com</a> if you need a developer to build something for you.</p>
+    <p>I usually create much fancier things, but this one was requested by a friend and was done in 5 minutes (yes, really)</p>
+    <div id="dropzone">
+        <p>Drop files or a folder here or click to select</p>
+    </div>
+    <input type="file" id="folderInput" webkitdirectory directory multiple>
+    <div id="status"></div>
+
+    <script>
+        const dropzone = document.getElementById('dropzone');
+        const folderInput = document.getElementById('folderInput');
+        const status = document.getElementById('status');
+
+        dropzone.addEventListener('click', () => folderInput.click());
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('dragover');
+        });
+        dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+        dropzone.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('dragover');
+            const items = e.dataTransfer.items;
+            if (items) {
+                await handleItems(items);
+            }
+        });
+
+        folderInput.addEventListener('change', async (e) => {
+            await handleFiles(e.target.files);
+        });
+
+        async function handleItems(items) {
+            status.textContent = 'Processing folders and files...';
+            const zip = new JSZip();
+            
+            for (let item of items) {
+                if (item.kind === 'file') {
+                    const entry = item.webkitGetAsEntry();
+                    if (entry) {
+                        await processEntry(entry, zip);
+                    }
+                }
+            }
+
+            await downloadZip(zip);
+            resetApp();
+        }
+
+        async function handleFiles(fileList) {
+            status.textContent = 'Processing files...';
+            const zip = new JSZip();
+            
+            for (let file of fileList) {
+                if (file.type === 'image/jpeg') {
+                    const repairedImage = await repairImage(file);
+                    zip.file(`LANDA-FIX-${file.webkitRelativePath}`, repairedImage);
+                }
+            }
+
+            await downloadZip(zip);
+            resetApp();
+        }
+
+        async function processEntry(entry, zip, path = '') {
+            if (entry.isFile) {
+                const file = await getFileFromEntry(entry);
+                if (file.type === 'image/jpeg') {
+                    const repairedImage = await repairImage(file);
+                    zip.file(`LANDA-FIX-${path}${entry.name}`, repairedImage);
+                }
+            } else if (entry.isDirectory) {
+                const reader = entry.createReader();
+                const entries = await readEntriesPromise(reader);
+                for (let childEntry of entries) {
+                    await processEntry(childEntry, zip, `${path}${entry.name}/`);
+                }
+            }
+        }
+
+        function getFileFromEntry(entry) {
+            return new Promise((resolve) => {
+                entry.file(resolve);
+            });
+        }
+
+        function readEntriesPromise(reader) {
+            return new Promise((resolve) => {
+                reader.readEntries((entries) => {
+                    resolve(entries);
+                });
+            });
+        }
+
+        async function repairImage(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0);
+                        canvas.toBlob(resolve, 'image/jpeg');
+                    };
+                    img.onerror = reject;
+                    img.src = e.target.result;
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        async function downloadZip(zip) {
+            status.textContent = 'Preparing download...';
+            const content = await zip.generateAsync({type: "blob"});
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(content);
+            link.download = 'LANDA-FIX-repaired_images.zip';
+            link.click();
+            status.textContent = 'Download complete!';
+        }
+
+        function resetApp() {
+            folderInput.value = '';
+            setTimeout(() => {
+                status.textContent = '';
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
