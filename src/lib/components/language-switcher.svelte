@@ -25,7 +25,9 @@
 	onSelectedChange={(v) => switchToLanguage(v?.value)}
 >
 	<Select.Trigger class="w-[140px]">
-		<Select.Value placeholder="Select language" />
+		<Select.Value placeholder="Select language" asChild>
+			<span>{config[currentLanguage].flag}</span> {config[currentLanguage].label}
+		</Select.Value>
 	</Select.Trigger>
 	<Select.Content>
 		{#each Object.values(config) as language}
